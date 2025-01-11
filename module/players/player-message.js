@@ -46,13 +46,6 @@ const handleUser = async (io, socket, data) => {
     }
 }
 
-function getAvatarValue (id) {
-    let sum = 0;
-    for(let char of id){
-        sum += (char.charCodeAt(0));
-    };
-    return sum % 10;
-}
 
 const getDataForSession = async(data, socket) => {
     try{
@@ -97,38 +90,9 @@ const getUserDataFromSource = async (token) => {
     }
 }
 
-
 const getPlayerCount = async () => playerCount;
 
-const initPlayerBase = async (io) => {
-    try {
-        io.emit("playerCount", `${playerCount}`);
-        setTimeout(() => initPlayerBase(io), 1000);
-    } catch (er) {
-        console.error(er);
-    }
 
-}
-
-
-const avatarUpdate = async (io, socket, data) => {
-    try {
-        const [user_id, operator_id, name, balance, a, b] = data
-        let = ''
-        if (a && b) {
-            url = `${a}:${b}`
-
-            let userData = await getUserData(user_id, operator_id);
-            if (userData) {
-                userData.avatar = url;
-                await setCache(`${operator_id}:${user_id}`, JSON.stringify(userData));
-                return socket.emit("info", { "id": user_id, operator_id, name, balance, "avatar": url });
-            }
-        }
-    } catch (err) {
-        console.error(`[ERR] while updating avatar is::`, err);
-    }
-}
 
 const getUserData = async (user_id, operator_id) => {
     let userData = await getCache(`${operator_id}:${user_id}`);
@@ -146,4 +110,4 @@ const getUserData = async (user_id, operator_id) => {
 
 
 
-module.exports = { initPlayer, initPlayerBase, handleUser, getPlayerCount, getUserData, getDataForSession, avatarUpdate }
+module.exports = { initPlayer, handleUser, getUserData, getDataForSession, getPlayerCount }

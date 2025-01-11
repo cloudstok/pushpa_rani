@@ -46,7 +46,6 @@ const setCurrentLobby = (data) => {
     lobbyData = data;
 };
 
-
 const placeBet = async (io, socket, [lobby_id, max_mult, status, user_id, operator_id, token, gameId, maxAutoCashout, bet_amount, identifier]) => {
     let data = { lobby_id, max_mult, status, user_id, operator_id, maxAutoCashout, bet_amount, identifier };
     if (lobbyData.lobbyId != lobby_id) {
@@ -67,18 +66,8 @@ const placeBet = async (io, socket, [lobby_id, max_mult, status, user_id, operat
         }
         const bet_id = `b:${lobby_id}:${bet_amount}:${user_id}:${operator_id}:${identifier}`;
         let userData = await getUserData(user_id, operator_id);
-        if (!userData) {
-            try {
-                userData = await getDataForSession({ token: token, game_id: gameId }, socket.id);
-                if (!userData) {
-                    return logEventAndEmitResponse(socket, data, 'Session Timed Out', 'bet', io);
-                }
-            } catch (error) {
-                console.error('Error fetching user data for session:', error);
-                return logEventAndEmitResponse(socket, data, 'Session Timed Out', 'bet', io);
-            }
-        }
-        let { name, balance, avatar, session_token, game_id, id } = userData;
+        if (!userData) return logEventAndEmitResponse(socket, data, 'Session Timed Out', 'bet', io);
+        let { name, balance, avatar, session_token, game_id } = userData;
         const betObj = { bet_id, name, balance, avatar, token: session_token, maxAutoCashout, socket_id: socket.id, game_id };
         if (bet_amount && bet_amount > +balance) {
             return logEventAndEmitResponse(socket, data, 'Insufficient Balance', 'bet');
@@ -196,6 +185,7 @@ const handleFulfilledResult = async (value, io) => {
 
 const handleRejectedResult = async (reason, io) => {
     try {
+        if(!reason || !io) return;
         const { response, socket_id, bet_id } = reason;
         const [b, lobby_id, bet_amount, user_id, operator_id, identifier] = bet_id.split(":");
         if (response?.data?.msg === "Invalid Token or session timed out") {
@@ -215,7 +205,7 @@ const handleRejectedResult = async (reason, io) => {
 
 
 const cancelBet = async (io, socket, [status, ...bet_id]) => {
-    const [event, lobby_id, betAmount, userId, operatorId, identifierValue] = bet_id;
+    const [event, lobby_id, bet_amount, user_id, operator_id, identifierValue] = bet_id;
     bet_id = bet_id.join(':');
     let canObj = { status, bet_id };
     if (lobbyData.lobbyId !== lobby_id && lobbyData.status != 0) {
@@ -228,7 +218,6 @@ const cancelBet = async (io, socket, [status, ...bet_id]) => {
         if (!betObj) {
             return logEventAndEmitResponse(socket, canObj, 'No active bets for given bet id', 'cancelledBet');
         }
-        let [b, lobby_id, bet_amount, user_id, operator_id, identifier] = bet_id.split(":");
         let { name, balance, avatar, game_id, token } = betObj;
         let userData = await getUserData(user_id, operator_id);
         if (!userData) {
@@ -371,7 +360,6 @@ const settleBet = async (io, data) => {
                 const [b, lobby_id, bet_amount, user_id, operator_id, identifier] = betObj.bet_id.split(":");
                 if (betObj.maxAutoCashout !== 'null' && Number(betObj.maxAutoCashout) <= lobbyData.max_mult) {
                     const socket = io.sockets.sockets.get(betObj.socket_id);
-
                     if (socket) {
                         let autoCashout = betObj.maxAutoCashout;
                         await cashOut(io, socket, [autoCashout, '1', 'null', b, lobby_id, bet_amount, user_id, operator_id, identifier], false);
@@ -448,5 +436,6 @@ const disConnect = async(io, socket) => {
     }
 }
 
+const getCurrentLobby =()=> lobbyData;
 
-module.exports = { initBet, settleBet, settleCallBacks, handleRejectedResult, setCurrentLobby , disConnect  , currentRoundBets};
+module.exports = { initBet, settleBet, settleCallBacks, handleRejectedResult, setCurrentLobby, disConnect, currentRoundBets, getCurrentLobby};

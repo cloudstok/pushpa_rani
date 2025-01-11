@@ -3,28 +3,20 @@ require('dotenv').config();
 const createLogger = require('./logger');
 const logger = createLogger('Database');
 const { appConfig } = require('./app-config');
-const { host, port, database, password, user, retries, interval } = appConfig.dbConfig;
-const dbConfig = {
-    host,
-    user,
-    password,
-    database,
-    port,
-    waitForConnections: true,
-    connectionLimit: 50,
-    queueLimit: 0
-};
+const { dbConfig, dbReadConfig, dbProps: { retries, interval } } = appConfig;
+
 
 const maxRetries = +retries;
 const retryInterval = +interval;
 
 let pool;
-
-const createDatabasePool = async (config) => {
+let readpool;
+const createDatabasePool = async () => {
     let attempts = 0;
     while (attempts < maxRetries) {
         try {
-            pool = createPool(config);
+            pool = createPool(dbConfig);
+            readpool = createPool(dbReadConfig)
             logger.info("DATABASE POOLS CREATED AND EXPORTED");
             return;
         } catch (err) {
@@ -39,53 +31,49 @@ const createDatabasePool = async (config) => {
     }
 };
 
-const read = async (query, params = []) => {
-    if (!pool) throw new Error('Database pool is not initialized');
-    const connection = await pool.getConnection();
-    let attempts = 0;
+const read = async (query, params = [],attempts=0) => {
+    if (!readpool) throw new Error('Read Database pool is not initialized');
+    const connection = await readpool.getConnection();
     try {
-        const [results] = await connection.execute(query, params);
-        return results;
-    } catch (err) {
-        connection.destroy();
-        attempts += 1;
-        logger.warn(`Read Query failed. Retry ${attempts}/${maxRetries}. Error: ${err.message}`);
-        if (attempts >= maxRetries) throw err;
-        await new Promise(res => setTimeout(res, 100)); // Small delay before retry
-    }
-    finally {
+        const finalQuery = format(query, params)
+        const [results] = await connection.query(finalQuery);
         connection.release(); // Release the connection back to the pool
-    }
-};
-
-const write = async (query, params = []) => {
-    if (!pool) throw new Error('Database pool is not initialized');
-    const connection = await pool.getConnection();
-    let attempts = 0;
-    do{
-    try {
-        const undefinedIndex = params.findIndex(e=>e===undefined);
-        if(undefinedIndex !==-1)
-            logger.error(JSON.stringify({err:"Undefined params in sql",query,params}));
-        const finalQuery = format(query,params)
-        const [results] = await connection.execute(finalQuery);
         return results;
     } catch (err) {
         console.error(err);
         connection.destroy();
-        attempts += 1;
-        logger.warn(`Write Query failed. Retry ${attempts}/${maxRetries}. Error: ${err.message}`);
-        await new Promise(res => setTimeout(res, 200)); // Small delay before retry;
+        logger.warn(`Read Query failed. Retry ${attempts}/${maxRetries}. Error: ${err.message}`);
+        if (attempts > maxRetries) throw err;
+        await new Promise(res => setTimeout(res, 100)); // Small delay before retry
     }
-    finally {
-        connection.release(); // Release the connection back to the pool
-    }
-    }while(attempts < 5)
+    return await read(query, params = [] ,attempts+1);
+
+};
+
+const write = async (query, params = [] ,attempts=0) => {
+    if (!pool) throw new Error('Write Database pool is not initialized');
+    const connection = await pool.getConnection();
+        try {
+            const undefinedIndex = params.findIndex(e => e === undefined);
+            if (undefinedIndex !== -1)
+                logger.error(JSON.stringify({ err: "Undefined params in sql", query, params }));
+            const finalQuery = format(query, params)
+            const [results] = await connection.query(finalQuery);
+            connection.release(); // Release the connection back to the pool
+            return results;
+        } catch (err) {
+            console.error(err);
+            connection.destroy();
+            logger.warn(`Write Query failed. Retry ${attempts}/${maxRetries}. Error: ${err.message}`);
+            if (attempts > maxRetries) throw err;
+            await new Promise(res => setTimeout(res, 200)); // Small delay before retry;
+        }
+       return await write(query, params = [] ,attempts+1);
 };
 
 const checkDatabaseConnection = async () => {
-    if (!pool) {
-        await createDatabasePool(dbConfig);
+    if (!pool || !readpool) {
+        await createDatabasePool();
     }
     logger.info("DATABASE CONNECTION CHECK PASSED");
 };

@@ -5,7 +5,6 @@ const SQL_INSERT_LOBBIES = 'INSERT INTO lobbies (lobby_id, start_delay, end_dela
 const insertLobbies = async (data) => {
     try {
         if (data.time) delete data.time;
-        data.max_mult = data.max_mult.toFixed(2);
         await write(SQL_INSERT_LOBBIES, [...Object.values(data)]);
     } catch (err) {
         console.error(err)
