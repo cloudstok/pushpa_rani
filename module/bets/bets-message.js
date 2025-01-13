@@ -104,7 +104,7 @@ function cleanData(betObj, event) {
     };
     if (event == 'bet') {
         Object.assign(clearBetObj, {
-            name: betObj['name'][0] + '***' + betObj['name'][betObj['name'].length - 1],
+            name: betObj['name'].slice(0, 2) + '***' + betObj['name'].slice(-2),
             avatar: betObj['avatar'],
         })
     };
