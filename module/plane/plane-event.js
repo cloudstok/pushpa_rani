@@ -5,6 +5,7 @@ const { insertLobbies } = require('./plane-db');
 const createLogger = require('../../utilities/logger');
 const logger = createLogger('Plane', 'jsonl');
 const {read} = require('../../utilities/db-connection');
+const planeErrorLogger = createLogger('PlaneError', 'log');
 
 let lobbiesMult = [];
 
